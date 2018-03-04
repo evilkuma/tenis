@@ -1,0 +1,192 @@
+<html>
+	<head><meta charset="utf-8"><style>body{background: gray}</style></head>
+	<body>
+	<script>
+	var canvas = document.createElement('canvas');
+	canvas.width = 500;
+	canvas.height = 500;
+	canvas.style.background = 'white';
+
+	var ctx = canvas.getContext('2d');
+	document.body.appendChild(canvas);
+
+	function GameMode() {
+		var self = this;
+		var points = [];
+		var blocks = [];
+		var platform = new Block(100, 100, 80, 20);
+		blocks.push(platform);
+
+		var moveInit = () => {
+			var intervals = {};
+			document.body.onkeydown = e => {
+				if(intervals[e.keyCode]) return;
+				var move;
+				switch(e.keyCode) {
+					case 38: //top
+						move = () => platform.y -=3;
+						break;
+					case 39: //right
+						move = () => platform.x +=3;
+						break;
+					case 40: //bottom
+						move = () => platform.y +=3;
+						break;
+					case 37: //left
+						move = () => platform.x -=3;
+						break;
+				}
+				if([38, 39, 40, 37].indexOf(e.keyCode) != -1)
+					intervals[e.keyCode] = setInterval(move, 10);
+			}
+
+			document.body.onkeyup = e => {
+				if([38, 39, 40, 37].indexOf(e.keyCode) != -1) {
+					clearInterval(intervals[e.keyCode]);
+					intervals[e.keyCode] = null;
+				}
+			}
+		}
+
+		this.addPoint = (x, y) => {
+			points.push(new Point(x, y));
+		}
+
+		this.addBlock = (x, y, w, h) => {
+			blocks.push(new Block(x, y, w, h));
+		}
+
+		this.start = () => {
+			moveInit();
+			animate();
+		}
+
+		var animate = () => {
+			ctx.clearRect(0,0,canvas.width,canvas.height);
+			points.forEach(el => {
+				el.draw();
+				el.move();
+				for(var id in blocks) {
+					if(isCrossRects(blocks[id], {x: el.x - el.r, y: el.y - el.r, w: 2 * el.r, h: 2 * el.r, step: el.step}, () => el.step = -el.step)) {
+					// if(isCrossRectCircle(blocks[id], el)) {
+						el.calcNewVect();
+						return;
+					}
+				}
+			});
+			blocks.forEach(el => el.draw());
+			requestAnimationFrame(animate);
+		}
+
+		var isCrossRectCircle = (rect, circ) => {
+			var line = Math.sqrt(Math.pow(rect.x - circ.x, 2) + Math.pow(rect.y - circ.y, 2)) < circ.r;
+			var x = circ.x + circ.r + 1 >= rect.x && circ.x - circ.r - 1 <= rect.x + rect.w;
+			var y = circ.y + circ.r + 1 >= rect.y && circ.y - circ.r - 1 <= rect.y + rect.h;
+			if(x&&y && (rect.x - circ.x > rect.y - circ.y) || (rect.x + rect - circ.x > rect.y - circ.y)) circ.step = -circ.step;
+			return line || x && y;
+		}
+
+		var isCrossRects = (rect1, rect2, callbackX = () => {}, callbackY = () => {}) => {
+			var h1 = rect1.y + rect1.h;
+			var w1 = rect1.x + rect1.w;
+			var h2 = rect2.y + rect2.h;
+			var w2 = rect2.x + rect2.w;
+			var isCross = (
+				(
+					((rect1.x >= rect2.x && rect1.x <= w2) || (w1 >= rect2.x && w1 <= w2)) 
+						&& 
+					((rect1.y >= rect2.y && rect1.y <= h2) || (h1 >= rect2.y && h1 <= h2))
+				) 
+				|| 
+				(
+					((rect2.x >= rect1.x && rect2.x <= w1) || (w2 >= rect1.x && w2 <= w1))
+						&&
+					((rect2.y >= rect1.y && rect2.y <= h1) || (h2 >= rect1.y && h2 <= h1))
+				)
+			) 
+			|| 
+			(
+				(
+					((rect1.x >= rect2.x && rect1.x <= w2) || (w1 >= rect2.x && w1 <= w2))
+						&&
+					((rect2.y >= rect1.y && rect2.y <= h1) || (h2 >= rect1.y && h2 <= h1))
+				) 
+				|| 
+				(
+					((rect2.x >= rect1.x && rect2.x <= w1) || (w2 >= rect1.x && w2 <= w1))
+						&&
+					((rect1.y >= rect2.y && rect1.y <= h2) || (h1 >= rect2.y && h1 <= h2))
+				)
+			);
+			if(isCross)
+				if(!(rect2.x - rect2.step > rect1.x && w2 + rect2.step < w1))
+					callbackX();				
+				else 
+					callbackY();
+			return isCross;
+		}
+	}
+
+	function Point(x, y) {
+		this.x = x;
+		this.y = y;
+		this.r = 5;
+		this.step = 5;
+
+		this.vect = {
+			x: 320,
+			y: 60
+		}
+
+		var k, b, step_x, pre_k = 1;
+		
+		var calc = () => {
+			k = pre_k * (0 - this.vect.y - 150)/(this.vect.x - 150 - 0);
+			b = ((0 * this.vect.y - this.vect.x * 0)/(this.vect.x - 150 - 0));
+			step_x = Math.sqrt(1/(1 + Math.pow(k, 2))) * this.step;
+		}
+		
+		calc();
+
+		this.draw = () => {
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI, false);
+			ctx.fill();
+		}
+		
+		this.move = () => {
+			this.y = (k*(this.x - this.x + step_x) + b) + this.y; // y = k * x + b
+			this.x += step_x;
+		}
+
+		this.calcNewVect = () => {
+			pre_k = -pre_k;
+			calc();
+		}
+	}
+
+	function Block(x, y, w, h) {
+		this.x = x;
+		this.y = y;
+		this.w = w;
+		this.h = h;
+
+		this.draw = () => {
+			ctx.fillRect(this.x, this.y, this.w, this.h);
+		}
+	}
+
+	var gm = new GameMode();
+	
+	gm.addPoint(400, 400);
+
+	// ramka
+	gm.addBlock(20, 0, 500, 20);
+	gm.addBlock(480, 20, 20, 480);
+	gm.addBlock(0, 480, 480, 20);
+	gm.addBlock(0, 0, 20, 480);
+
+	gm.start();	
+	</script>
+	</body>
+</html>
